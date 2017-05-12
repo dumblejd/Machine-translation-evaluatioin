@@ -1,0 +1,199 @@
+﻿package topicmodel;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+
+public class LDA_CountWord {
+	//compute TF/IDF
+	public HashMap<String, Integer> hm;
+	private String Encoding="ASCII";
+	
+	public TFIDF(String encoding){
+		this.Encoding =encoding;
+	}
+	
+	public void countAllDocumentTF(String docspath) throws IOException {
+		
+		//compute tf(term frequency)
+		String var1 = "";		
+		hm = new LinkedHashMap<String, Integer>();
+		Integer total = 0;
+		File fd = new File(docspath);		
+		if (fd.isDirectory()){
+			//is directory
+			 String[]  tempList  =  fd.list();  
+			 File  temp  =  null;  
+		      for  (int  i  =  0;  i  <  tempList.length;  i++)  {  
+		           if  (docspath.endsWith(File.separator))  {  
+		              temp  =  new  File(docspath  +  tempList[i]);  
+		           }  
+		           else  {  
+		              temp  =  new  File(docspath  +  File.separator  +  tempList[i]);  
+		           }  
+		            if (temp.isDirectory()) continue;
+		      
+			        InputStreamReader isrr=new InputStreamReader(new FileInputStream(temp),this.Encoding);
+					BufferedReader bfr = new BufferedReader(isrr);
+					String docline = bfr.readLine();
+					Integer tmpnum = 0;
+					while (docline != null) {					
+						String[] words = docline.split("[ \\t\\n]");
+						for (String word : words) {
+							total++;
+							word = word.toLowerCase();
+							if (hm.containsKey(word)) {
+								tmpnum = (Integer) hm.get(word);
+								tmpnum++;
+								hm.remove(word);
+								hm.put(word, tmpnum);
+							} else {
+								hm.put(word, 1);
+							}
+						}
+						docline = bfr.readLine();
+					}				
+					bfr.close();
+					isrr.close();
+		      
+				if  (docspath.endsWith(File.separator))  {
+					 writeHMtoDocument(hm, docspath +"tf_dir\\" +temp.getName()+".allwordcount", total);//
+		              
+		         }  
+		         else  {  
+		        	 writeHMtoDocument(hm, docspath +  File.separator+"tf_dir\\" +temp.getName()+".allwordcount", total);
+		              
+		         }  
+				
+				hm.clear();
+		      }
+				
+		}
+		else {
+			System.out.print("you should input a directory name,not a file name");
+			return;
+		}
+		
+
+	}
+	public void writeHMtoDocument(HashMap<String, Integer> hm,
+			String outfilename, Integer TotalWordsNum) throws IOException {
+		
+		//begin to write TF file
+		//File outSentFile = new File(outfilename);
+		//FileWriter fw = new FileWriter(outSentFile);
+		OutputStreamWriter oswSvmfile=new OutputStreamWriter(new FileOutputStream(outfilename),this.Encoding);
+		BufferedWriter bw = new BufferedWriter(oswSvmfile);
+		Iterator<String> it = hm.keySet().iterator();
+
+		String key = "";
+		Integer value = 0;
+		bw.write(TotalWordsNum.toString() + " Count TF\n");
+
+		while (it.hasNext()) {
+			key = it.next();
+			value = hm.get(key);
+			bw.write(key + " " + value + " " + value.doubleValue()
+					/ TotalWordsNum + "\n");
+		}
+		bw.flush();
+		oswSvmfile.close();
+		bw.close();
+
+		
+	}
+	public HashMap<String, Integer> prepare_countIDF(String Filedir) throws IOException {
+		//在信息检索中，使用最多的权重是“逆文本频率指数” （Inverse document frequency 缩写为ＩＤＦ），
+		//它的公式为ｌｏｇ（Ｄ／Ｄｗ）其中Ｄ是全部网页数。比如，我们假定中文网页数是Ｄ＝１０亿，
+		//应删除词“的”在所有的网页中都出现，即Ｄｗ＝１０亿，那么它的ＩＤＦ＝log(10亿/10亿）= log (1) = ０。假
+		//假如专用词“原子能”在两百万个网页中出现，即Ｄｗ＝２００万，则它的权重ＩＤＦ＝log(500) =6.2
+		HashMap<String, Integer> hglobal = new HashMap<String, Integer>();
+		// this hglobal stores the document number contains per word
+		//notice:filedir stores all distinct dealed file which in fact no content doc ,but tf doc. 
+		File f = new File(Filedir);
+		File[] filelist = null;
+		if (f.isDirectory())
+			filelist = f.listFiles();		
+		for (int i = 0; i < filelist.length; i++) {
+			//FileReader ffr = new FileReader(filelist[i]);
+		    InputStreamReader isrr=new InputStreamReader(new FileInputStream(filelist[i]),this.Encoding);
+			BufferedReader bfr = new BufferedReader(isrr);
+			String docline = bfr.readLine();
+			docline = bfr.readLine();
+			Integer wordc = 0;
+			while (docline != null) {
+				String word[] = docline.split(" ");
+				if (hglobal.containsKey(word[0])) {
+					wordc = hglobal.get(word[0]);
+					hglobal.remove(word[0]);
+					hglobal.put(word[0], wordc + 1);
+					//break;//this is added by gong,I think this must be done,because in one document maybe a word ocurrs more time, I only to know how number docs contains this word
+				} else
+					hglobal.put(word[0], 1);
+				docline = bfr.readLine();
+			}
+			bfr.close();
+			isrr.close();				
+		}
+		System.out.print("prepare idf data sucessfully!");
+		return (HashMap<String, Integer>) hglobal;
+	}
+
+	public void computeIDF(String fileDir) throws IOException {
+		//notice: filedir stores these files which contains TF. 
+		System.out.println("begin to compute words tf/idf ,pls waiting .....");
+		int docs=960;//if there are 960 documents in sum 
+		HashMap<String, Integer> hm = new HashMap<String, Integer>();
+		hm = this.prepare_countIDF(fileDir);
+		File f = new File(fileDir);
+		File[] filelist = null;
+		if (f.isDirectory())
+			filelist = f.listFiles();
+		//notice: filedir stores these files which contains TF. 
+		String line = "";
+		for (int ifname = 0; ifname < filelist.length; ifname++) {
+			//FileReader fmf = new FileReader(filelist[ifname]);
+			InputStreamReader isrr=new InputStreamReader(new FileInputStream(filelist[ifname]),this.Encoding);
+			BufferedReader fmfi = new BufferedReader(isrr);
+			FileWriter fw = new FileWriter(filelist[ifname].toString().replace(
+					"wordc", "wc"));//??
+			BufferedWriter bw = new BufferedWriter(fw);
+			line = fmfi.readLine();
+			bw.write(line
+					+ " NDOC IDF(Log(totalDoc/havewordDoc)) TFIDF(TF*IDF)");
+			bw.newLine();
+			line = fmfi.readLine();
+			while (line != null) {
+				bw.write(line + " ");
+				String[] tmp = line.split(" ");
+				Integer hadoc = hm.get(tmp[0]);
+				bw.write(hadoc + " ");
+				Double ft = (Double) Math.log(docs / hadoc);
+				bw.write(Double.toString(ft) + " ");
+				Double tfidf = Double.valueOf(tmp[2]) * ft;
+				bw.write(Double.toString(tfidf));
+				bw.newLine();
+				line = fmfi.readLine();
+			}
+			bw.flush();
+			isrr.close();
+			fmfi.close();
+			bw.close();
+			fw.close();
+
+		}
+		System.out.println("compute tf/idf finished ,now begin to write file....");
+		for (int i = 0; i < filelist.length; i++) {
+			filelist[i].delete();
+		}
+		System.out.println("tf/idf finished ");
+	}
+}
